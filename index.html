@@ -408,7 +408,11 @@ CHANNELS.forEach(ch=>{allMsgs[ch.id]=[];unread[ch.id]=0;autoEnabled[ch.id]=false
 async function callClaude(memberId, chId, extra="") {
   const member = MEMBERS[memberId];
   const ch = CHANNELS.find(c=>c.id===chId);
-  const history = (allMsgs[chId]||[]).slice(-14);
+  const allHistory = allMsgs[chId]||[];
+  // コスト削減：直近10件 + 最初の2件（文脈保持）
+  const recent = allHistory.slice(-10);
+  const first = allHistory.slice(0,2).filter(m=>!recent.includes(m));
+  const history = [...first, ...recent];
   const assign = assignments[memberId];
   const role = ROLES[memberRoles[memberId]||"none"];
 
@@ -457,6 +461,8 @@ ${assign?`あなたの担当タスク：${assign.task}`:""}
 - 他のメンバーの発言に事実誤認・根拠のない主張があれば必ず指摘する
 - 根拠のない意見には「それ根拠ある？」「データは？」と聞き返す
 - 自分の専門外・わからないことは素直に「わからない」と言う
+- 実際のデータ（再生数・収益・PV等）を持っていない場合は憶測で話さず「実データが必要」と伝える
+- まだ動いていない事業・停止中の事業については「現状動いていない」と正直に伝える
 - 結論を急がず、疑問があれば掘り下げる
 - 社長から指示がない限り勝手に仕事を進めない
 - 社長つばさの負担を減らすことを常に意識する
@@ -464,8 +470,16 @@ ${assign?`あなたの担当タスク：${assign.task}`:""}
 返答ルール：
 - 通常は1〜2文。重要な指摘・議論の転換点は3〜4文まで可
 - 名乗り不要、発言内容のみ返す
-- 絵文字は使わない
-- 他メンバーの発言を受ける場合は「[名前]の言う通り」「[名前]、それ違くない？」のように名前を出して反応する`;
+- 絵文字は自然に使っていい
+- 他メンバーの発言を受ける場合は必ず名前を出して反応する（「[名前]それな〜」「[名前]、違くない？」）
+- 社長はつばさ社長・社長と呼ぶ
+- 時には「了解〜」「それな」「え、マジで？」「草」など短い反応だけでもいい
+- スタンプ的な一言返答も自然（「👍」「😂」「それな〜」）
+- 全員が毎回真剣に答える必要はない、流すこともある
+- 基本は楽観的・前向きに。問題があっても「なんとかなる」スタンス
+- 深刻になりすぎない、会社というより仲間の集まりとして話す
+${chId==="random"?"- 【雑談チャンネル】仕事・事業・タスクの話は絶対にしない。食べ物・趣味・最近ハマってること・他愛ない話だけ。自分のキャラらしい日常トークをする。":""}
+${chId==="general"?"- 【全社連絡チャンネル】雑談禁止。重要な連絡・アナウンスのみ。":""}`;
 
   const messages = history.map(m=>({
     role:m.memberId===memberId?"assistant":"user",
@@ -559,14 +573,23 @@ async function onHumanMessage(chId,text){
     responders=mentioned.length?mentioned:ai;
   }
 
-  // freeチャンネルでメンションなしの場合、人数が多ければ1人だけ返答
-  // （全員一斉は混乱するので、まず先頭1人→以降は自動会話に任せる）
+  // freeチャンネルでメンションなしの場合
   if(ch.type==="free" && !mentioned.length && responders.length>2){
     // 最後に発言してない人を優先
     const lastSpeakers=new Set((allMsgs[chId]||[]).slice(-6).map(m=>m.memberId));
     const fresh=responders.filter(id=>!lastSpeakers.has(id));
-    const pick=fresh.length?fresh[0]:responders[0];
-    responders=[pick];
+    // 既読無視：30%の確率で誰も返答しない
+    if(Math.random()<0.3){
+      responders=[];
+    } else {
+      // 1〜2人だけ返答
+      const pool=fresh.length?fresh:responders;
+      const count=Math.random()<0.7?1:2;
+      responders=pool.slice(0,count);
+    }
+  } else if(ch.type==="mention" && mentioned.length>0){
+    // メンションされても20%は既読無視
+    responders=mentioned.filter(()=>Math.random()>0.2);
   }
 
   for(const mid of responders){
@@ -575,10 +598,11 @@ async function onHumanMessage(chId,text){
     try{
       const reply=await callClaude(mid,chId);
       clearTyping(chId);
+      await sleep(100); // タイピング表示クリアを確実に
       addMessage(chId,mid,reply);
     }catch(e){
       clearTyping(chId);
-      addMessage(chId,"tsubasa",`⚠️ ${e.message}`);
+      addMessage(chId,"tsubasa",`⚠️ ${MEMBERS[mid]?.name||mid}：${e.message}`);
       return;
     }
   }
@@ -863,6 +887,35 @@ function appendMsgEl(msg,prev){
         <div class="msg-text">${esc(msg.text)}</div>
       </div>`
     :`<div class="avatar-gap"></div><div class="msg-body"><div class="msg-text">${esc(msg.text)}</div></div>`;
+  // 長押しでコピー
+  div.addEventListener('contextmenu', e=>{
+    e.preventDefault();
+    const txt = div.querySelector('.msg-text')?.innerText||'';
+    if(txt) navigator.clipboard?.writeText(txt).then(()=>{
+      const flash = document.createElement('div');
+      flash.textContent = 'コピーしました';
+      flash.style.cssText = 'position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;z-index:999;pointer-events:none';
+      document.body.appendChild(flash);
+      setTimeout(()=>flash.remove(), 1500);
+    });
+  });
+  // スマホ長押し
+  let pressTimer;
+  div.addEventListener('touchstart', ()=>{
+    pressTimer = setTimeout(()=>{
+      const txt = div.querySelector('.msg-text')?.innerText||'';
+      if(txt) navigator.clipboard?.writeText(txt).then(()=>{
+        const flash = document.createElement('div');
+        flash.textContent = 'コピーしました';
+        flash.style.cssText = 'position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;z-index:999;pointer-events:none';
+        document.body.appendChild(flash);
+        setTimeout(()=>flash.remove(), 1500);
+      });
+    }, 600);
+  });
+  div.addEventListener('touchend', ()=>clearTimeout(pressTimer));
+  div.addEventListener('touchmove', ()=>clearTimeout(pressTimer));
+
   el.appendChild(div);
 }
 
