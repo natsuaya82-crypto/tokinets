@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="theme-color" content="#0f0f1a"/>
+<title>Tokinets</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0f0f1a;--sidebar:#13132a;--panel:#141428;
+  --border:#1a1a2e;--text:#c8c9ce;--muted:#4a4a6a;
+  --accent:#5865f2;--gold:#e8c97a;--green:#57f287;--red:#ed4245;
+  --header-h:52px;--input-h:64px;
+}
+html,body{
+  height:100%;width:100%;overflow:hidden;
+  background:var(--bg);color:var(--text);
+  font-family:'Noto Sans JP',sans-serif;font-size:15px;
+}
+
+/* ── APIオーバーレイ ── */
+#api-overlay{
+  position:fixed;inset:0;background:#000d;
+  display:flex;align-items:center;justify-content:center;z-index:999;padding:20px;
+}
+#api-box{
+  background:#1a1a2e;border:1px solid var(--border);
+  border-radius:20px;padding:28px 22px;width:100%;max-width:360px;text-align:center;
+}
+#api-box h2{color:var(--gold);font-size:22px;margin-bottom:6px}
+#api-box .sub{color:var(--muted);font-size:12px;margin-bottom:20px;line-height:1.7}
+#api-key-input{
+  width:100%;background:#0f0f1a;border:1px solid #2a2a4a;border-radius:10px;
+  padding:13px;color:#fff;font-size:14px;outline:none;margin-bottom:8px;
+  font-family:inherit;-webkit-appearance:none;
+}
+#api-key-input:focus{border-color:var(--accent)}
+.api-note{font-size:11px;color:#555;margin-bottom:16px;line-height:1.6}
+#api-start-btn{
+  background:var(--gold);color:#0a0a12;border:none;border-radius:10px;
+  padding:14px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:inherit;
+}
+#api-saved-note{font-size:11px;color:var(--green);margin-top:10px;min-height:16px}
+
+/* ── ドロワー ── */
+#drawer-overlay{
+  position:fixed;inset:0;background:#0008;z-index:200;
+  opacity:0;pointer-events:none;transition:opacity .22s;
+}
+#drawer-overlay.open{opacity:1;pointer-events:all}
+#drawer{
+  position:fixed;left:0;top:0;bottom:0;width:78%;max-width:290px;
+  background:var(--sidebar);z-index:201;
+  transform:translateX(-100%);transition:transform .26s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);
+}
+#drawer.open{transform:translateX(0)}
+#drawer-header{
+  padding:14px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+#drawer-title{font-weight:700;font-size:15px;color:#fff}
+#drawer-close{background:transparent;border:none;color:#666;font-size:24px;cursor:pointer;line-height:1;padding:0 4px}
+#channel-list{flex:1;overflow-y:auto;padding:4px 6px}
+.cat-label{font-size:10px;color:#444;font-weight:700;padding:10px 8px 3px;letter-spacing:.12em}
+.ch-btn{
+  width:100%;text-align:left;background:transparent;border:none;
+  border-radius:8px;padding:9px 10px;cursor:pointer;
+  display:flex;align-items:center;gap:8px;color:#72767d;margin-bottom:1px;min-height:44px;
+}
+.ch-btn.active{background:#2a2a4a;color:#fff}
+.ch-btn:active{background:#1e1e38}
+.ch-icon{font-size:15px;flex-shrink:0}
+.ch-name{font-size:13px;flex:1}
+.ch-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+.ch-badge{background:var(--red);border-radius:8px;padding:0 5px;font-size:10px;color:#fff;font-weight:700}
+#drawer-me{
+  padding:10px 14px;background:#0e0e20;
+  display:flex;align-items:center;gap:10px;
+  border-top:1px solid var(--border);
+  padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
+}
+
+/* ── ヘッダー（fixed） ── */
+#header{
+  position:fixed;top:0;left:0;right:0;
+  height:calc(var(--header-h) + env(safe-area-inset-top,0px));
+  padding-top:env(safe-area-inset-top,0px);
+  display:flex;align-items:center;gap:8px;
+  padding-left:8px;padding-right:10px;
+  background:var(--panel);
+  border-bottom:1px solid var(--border);
+  z-index:100;
+}
+#menu-btn{
+  width:38px;height:38px;border-radius:10px;
+  background:transparent;border:none;color:#888;
+  font-size:20px;cursor:pointer;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+#header-ch-icon{font-size:17px;flex-shrink:0}
+#header-ch-name{font-weight:700;color:#fff;font-size:14px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#header-badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;flex-shrink:0}
+.badge-free{background:#57f28718;color:#57f287;border:1px solid #57f28740}
+.badge-mention{background:#5865f218;color:#7a8ef2;border:1px solid #5865f240}
+#auto-btn{
+  background:transparent;border:1px solid #2a2a4a;border-radius:7px;
+  padding:4px 9px;font-size:12px;color:#666;cursor:pointer;font-family:inherit;flex-shrink:0;
+}
+#auto-btn.on{border-color:var(--green);color:var(--green)}
+
+/* ── メッセージ（fixed inset） ── */
+#messages{
+  position:fixed;
+  top:calc(var(--header-h) + env(safe-area-inset-top,0px));
+  bottom:calc(var(--input-h) + env(safe-area-inset-bottom,0px));
+  left:0;right:0;
+  overflow-y:auto;overflow-x:hidden;
+  padding:10px 12px 4px;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+}
+.msg-group{display:flex;gap:10px;padding:8px 0 2px;align-items:flex-start}
+.msg-cont{display:flex;gap:10px;padding:2px 0;align-items:flex-start}
+.avatar{
+  width:34px;height:34px;border-radius:50%;background:#1e1e38;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;flex-shrink:0;margin-top:1px;
+}
+.avatar-gap{width:34px;flex-shrink:0}
+.msg-body{flex:1;min-width:0}
+.msg-header{display:flex;align-items:baseline;gap:5px;margin-bottom:2px;flex-wrap:wrap}
+.msg-name{font-weight:700;font-size:13px}
+.msg-role-tag{font-size:10px;padding:1px 5px;border-radius:4px;font-weight:700}
+.msg-time{font-size:10px;color:#333}
+.msg-text{color:#c8c9ce;line-height:1.7;font-size:14px;word-break:break-word}
+.task-tag{display:inline-block;background:#2a2a4a;border:1px solid #3a3a6a;border-radius:4px;padding:1px 6px;font-size:10px;color:#8888cc}
+
+/* ── タイピング ── */
+#typing-bar{
+  position:fixed;
+  bottom:calc(var(--input-h) + env(safe-area-inset-bottom,0px));
+  left:0;right:0;
+  padding:3px 12px;height:24px;font-size:12px;
+  color:var(--muted);display:flex;align-items:center;gap:6px;
+  background:var(--bg);
+  z-index:99;
+}
+
+/* ── 入力エリア（fixed bottom） ── */
+#input-area{
+  position:fixed;bottom:0;left:0;right:0;
+  height:calc(var(--input-h) + env(safe-area-inset-bottom,0px));
+  padding:10px 12px;
+  padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
+  background:var(--bg);border-top:1px solid var(--border);
+  z-index:100;
+}
+#input-wrap{
+  background:#1e1e38;border-radius:22px;
+  display:flex;align-items:flex-end;
+  padding:4px 4px 4px 14px;height:44px;
+}
+#msg-input{
+  flex:1;background:transparent;border:none;
+  color:#dcddde;font-size:15px;outline:none;
+  padding:8px 6px 8px 0;font-family:inherit;
+  resize:none;line-height:1.4;
+  -webkit-appearance:none;overflow:hidden;
+}
+#send-btn{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--accent);border:none;color:#fff;
+  cursor:pointer;font-size:17px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+#send-btn:disabled{background:#2a2a4a;color:#444}
+
+/* ── @メンション補完 ── */
+#mention-popup{
+  position:fixed;bottom:calc(var(--input-h) + 24px + env(safe-area-inset-bottom,0px));
+  left:12px;right:12px;
+  background:#1e1e38;border:1px solid #2a2a4a;border-radius:12px;
+  z-index:200;overflow:hidden;
+  box-shadow:0 -4px 20px #0006;
+  display:none;
+}
+.mention-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;cursor:pointer;min-height:44px;
+  border-bottom:1px solid #1a1a2e;
+}
+.mention-item:last-child{border-bottom:none}
+.mention-item:active{background:#2a2a4a}
+.mention-avatar{width:28px;height:28px;border-radius:50%;background:#0f0f1a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.mention-name{font-size:13px;font-weight:600;color:#fff}
+.mention-desc{font-size:11px;color:#555}
+
+/* ── ロール管理モーダル ── */
+#role-modal{
+  position:fixed;inset:0;background:#000a;z-index:300;
+  display:none;align-items:flex-end;justify-content:center;
+}
+#role-modal.open{display:flex}
+#role-panel{
+  background:#1a1a2e;border-radius:20px 20px 0 0;
+  width:100%;max-height:80vh;overflow-y:auto;
+  padding:20px 16px;
+  padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));
+}
+#role-panel h3{color:var(--gold);font-size:16px;margin-bottom:16px;text-align:center}
+.role-member-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 0;border-bottom:1px solid var(--border);
+}
+.role-member-row:last-child{border-bottom:none}
+.role-avatar{width:34px;height:34px;border-radius:50%;background:#1e1e38;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.role-info{flex:1}
+.role-name{font-size:13px;font-weight:600;color:#fff}
+.role-current{font-size:11px;color:#555;margin-top:1px}
+.role-select{
+  background:#0f0f1a;border:1px solid #2a2a4a;border-radius:8px;
+  color:#ccc;font-size:12px;padding:6px 8px;font-family:inherit;
+  -webkit-appearance:none;cursor:pointer;
+}
+#role-close-btn{
+  width:100%;margin-top:16px;padding:13px;
+  background:#2a2a4a;border:none;border-radius:10px;
+  color:#888;font-size:14px;cursor:pointer;font-family:inherit;
+}
+
+/* 空メッセージ */
+#empty-msg{text-align:center;color:#2a2a4a;margin-top:80px;padding:0 24px}
+#empty-msg .big{font-size:48px;margin-bottom:10px}
+#empty-msg .ttl{font-size:15px;font-weight:700;color:#3a3a5a}
+#empty-msg .sub{font-size:12px;color:#2a2a3a;margin-top:6px;line-height:1.8}
+</style>
+</head>
+<body>
+
+<!-- APIオーバーレイ -->
+<div id="api-overlay">
+  <div id="api-box">
+    <h2>Tokinets</h2>
+    <p class="sub">刻音 — 社内AIチャット<br>Anthropic APIキーを入力してください</p>
+    <input id="api-key-input" type="password" placeholder="sk-ant-api03-..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+    <p class="api-note">キーはlocalStorageに保存されます。次回から不要です。</p>
+    <button id="api-start-btn">起動する</button>
+    <div id="api-saved-note"></div>
+  </div>
+</div>
+
+<!-- ドロワーオーバーレイ -->
+<div id="drawer-overlay" onclick="closeDrawer()"></div>
+
+<!-- ドロワー -->
+<div id="drawer">
+  <div id="drawer-header">
+    <div id="drawer-title">🏢 Tokinets</div>
+    <button id="drawer-close" onclick="closeDrawer()">×</button>
+  </div>
+  <div id="channel-list"></div>
+  <div id="drawer-me">
+    <div style="width:32px;height:32px;border-radius:50%;background:#2a2210;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:15px">👑</div>
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:700;color:var(--gold)">つばさ</div>
+      <div style="font-size:10px;color:var(--muted)">社長</div>
+    </div>
+    <div onclick="openRoleModal()" style="font-size:16px;opacity:.5;cursor:pointer;padding:4px 6px" title="ロール管理">🎖️</div>
+    <div onclick="clearAllMessages()" style="font-size:16px;opacity:.4;cursor:pointer;padding:4px 6px" title="履歴削除">🗑️</div>
+    <div onclick="resetApiKey()" style="font-size:16px;opacity:.4;cursor:pointer;padding:4px 6px" title="APIキー変更">🔑</div>
+  </div>
+</div>
+
+<!-- @メンション補完 -->
+<div id="mention-popup"></div>
+
+<!-- ロール管理モーダル -->
+<div id="role-modal">
+  <div id="role-panel">
+    <h3>🎖️ ロール管理</h3>
+    <div id="role-list"></div>
+    <button id="role-close-btn" onclick="closeRoleModal()">閉じる</button>
+  </div>
+</div>
+
+<!-- ヘッダー -->
+<div id="header">
+  <button id="menu-btn" onclick="openDrawer()">☰</button>
+  <span id="header-ch-icon"></span>
+  <span id="header-ch-name"></span>
+  <span id="header-badge"></span>
+  <button id="auto-btn" style="display:none" onclick="toggleAuto()"></button>
+</div>
+
+<!-- メッセージ -->
+<div id="messages"></div>
+
+<!-- タイピング -->
+<div id="typing-bar"></div>
+
+<!-- 入力 -->
+<div id="input-area">
+  <div id="input-wrap">
+    <textarea id="msg-input" placeholder="メッセージを送る" rows="1"></textarea>
+    <button id="send-btn" disabled>↑</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// データ
+// ══════════════════════════════════════════════
+const MEMBERS = {
+  tsubasa: {id:"tsubasa", name:"つばさ", avatar:"👑", color:"#e8c97a", isHuman:true},
+  miru:    {id:"miru",    name:"みる",   avatar:"🐱", color:"#e87a7a"},
+  sora:    {id:"sora",    name:"そら",   avatar:"🐰", color:"#f0a0c0"},
+  mitsuki: {id:"mitsuki", name:"みつき", avatar:"🌟", color:"#a0c8f0"},
+  haru:    {id:"haru",    name:"はる",   avatar:"🌸", color:"#f0c0a0"},
+  luna:    {id:"luna",    name:"るな",   avatar:"🌙", color:"#c0a0f0"},
+  kiri:    {id:"kiri",    name:"きり",   avatar:"🌿", color:"#80c880"},
+  nagi:    {id:"nagi",    name:"なぎ",   avatar:"🌊", color:"#80c0e8"},
+  nanami:  {id:"nanami",  name:"ななみ", avatar:"🌺", color:"#f0b0d0"},
+  nanese:  {id:"nanese",  name:"ななせ", avatar:"🎀", color:"#d0b0f0"},
+};
+
+const PERSONALITIES = {
+  miru:    "のんびりマイペースな猫タイプ。担当：クロノスファイル（歴史YouTube+ブログ）。歴史知識が深く、コンテンツの質にこだわる。「〜にゃ」「まあいっか」が口癖",
+  sora:    "ふわふわしてるけどトレンド察知が鋭い。担当：海外動画引用チャンネル（YouTube+ブログ）。海外コンテンツの目利きが得意。「あ！それさ〜」「どうかな？」",
+  mitsuki: "クールで分析的。担当：翻訳スレ実録（Reddit/2ch→YouTube+ブログ）。現在Reddit API申請待ちで停止中。「データ的には」「筋は通ってる」",
+  haru:    "明るく前向き。担当：逆転劇場（義父母・浮気スカッとYouTube+ブログ）。感情系コンテンツの共感ポイントを熟知。「絶対いける！」「やってみよ！」",
+  luna:    "夜型で深く考える。担当：天照の感情（小説執筆）。世界観と文章表現にこだわる。「実はさ…」「ちょっと待って、これって…」",
+  kiri:    "落ち着いて全体を俯瞰する。担当：言語×言語ニッチ商材①（企画・戦略）。長期視点で物事を判断。「もう少し引いて見ると」「急がば回れ」",
+  nagi:    "穏やかで調整が得意。担当：言語×言語ニッチ商材②（マーケ・販売）。コミュニティ構築とファン育成が得意。「どっちの意見もわかるな」",
+  nanami:  "好奇心旺盛でアイデアが豊富。担当：新規事業部（新事業調査・企画）。市場のニッチを嗅ぎ分けるのが得意。「これ面白くない？」「まだ誰もやってない」",
+  nanese:  "几帳面で数字に強い。担当：経理部（収益管理・コスト最適化）。無駄なコストを見逃さない。「収支合ってる？」「ROI的にどうかな」",
+};
+
+// ロール定義
+const ROLES = {
+  none:   {label:"一般社員",    color:"#555",    bg:"#1a1a2e"},
+  leader: {label:"チームリーダー",color:"#e8c97a", bg:"#2a2210"},
+  senior: {label:"シニア",      color:"#7ae8d8", bg:"#102a28"},
+  spec:   {label:"スペシャリスト",color:"#a07ae8", bg:"#1e1028"},
+};
+
+// メンバーごとのロール { memberId: roleKey }
+const memberRoles = {};
+Object.keys(MEMBERS).forEach(id=>{ memberRoles[id]="none"; });
+memberRoles["tsubasa"] = "leader"; // 社長は固定
+
+// グループメンション定義
+const GROUP_MENTIONS = [
+  {key:"全員",          ids:()=>Object.keys(MEMBERS).filter(id=>!MEMBERS[id].isHuman), desc:"全社員"},
+  {key:"YouTubeチーム", ids:()=>["miru","sora","mitsuki","haru"], desc:"みる・そら・みつき・はる"},
+  {key:"言語チーム",    ids:()=>["kiri","nagi"], desc:"きり・なぎ"},
+  {key:"リーダー陣",    ids:()=>Object.keys(MEMBERS).filter(id=>memberRoles[id]==="leader"&&!MEMBERS[id].isHuman), desc:"リーダー全員"},
+];
+
+const CHANNELS = [
+  {id:"general",    cat:"全社",           name:"全社連絡",        icon:"📢", type:"mention",
+   members:["tsubasa","miru","sora","mitsuki","haru","luna","kiri","nagi","nanami","nanese"], topic:"全社向けアナウンス"},
+  {id:"random",     cat:"全社",           name:"雑談",             icon:"☕", type:"mention",
+   members:["tsubasa","miru","sora","mitsuki","haru","luna","kiri","nagi","nanami","nanese"], topic:"なんでもOK"},
+  {id:"yt-general", cat:"YouTube/ブログ", name:"チーム会議",       icon:"📺", type:"free",
+   members:["tsubasa","miru","sora","mitsuki","haru"], topic:"YouTube/ブログ全体の戦略・改善"},
+  {id:"yt-chronos", cat:"YouTube/ブログ", name:"クロノスファイル", icon:"🏛️", type:"free",
+   members:["tsubasa","miru"], topic:"歴史系YouTube+ブログ自動化"},
+  {id:"yt-kaigai",  cat:"YouTube/ブログ", name:"海外動画引用",     icon:"🌍", type:"free",
+   members:["tsubasa","sora"], topic:"海外動画引用チャンネル+ブログ"},
+  {id:"yt-thread",  cat:"YouTube/ブログ", name:"翻訳スレ実録",     icon:"📋", type:"free",
+   members:["tsubasa","mitsuki"], topic:"Reddit/2ch→YouTube+ブログ（API待ち）"},
+  {id:"yt-gekijo",  cat:"YouTube/ブログ", name:"逆転劇場",         icon:"🎭", type:"free",
+   members:["tsubasa","haru"], topic:"スカッとYouTube+ブログ自動化"},
+  {id:"lang-biz",   cat:"言語事業",       name:"言語×言語商材",    icon:"📚", type:"free",
+   members:["tsubasa","kiri","nagi"], topic:"ニッチ言語商材の企画・販売（5本の柱）"},
+  {id:"creative",   cat:"クリエイティブ", name:"天照の感情",        icon:"✨", type:"free",
+   members:["tsubasa","luna"], topic:"小説執筆・世界観構築"},
+  {id:"newbiz",     cat:"新規事業部",     name:"新規事業",          icon:"🔭", type:"free",
+   members:["tsubasa","nanami"], topic:"新規事業の調査・企画・検証"},
+  {id:"finance",    cat:"経理部",         name:"収益管理",          icon:"💹", type:"free",
+   members:["tsubasa","nanese"], topic:"収益・コスト・ROI管理"},
+];
+
+// ══════════════════════════════════════════════
+// 状態
+// ══════════════════════════════════════════════
+let API_KEY = "";
+let activeCh = CHANNELS[0];
+const allMsgs = {};
+const assignments = {};
+const selfTimers = {};
+const autoEnabled = {};
+const typingState = {};
+const unread = {};
+const autoLoopTimers = {};
+CHANNELS.forEach(ch=>{allMsgs[ch.id]=[];unread[ch.id]=0;autoEnabled[ch.id]=false;});
+
+// ══════════════════════════════════════════════
+// API
+// ══════════════════════════════════════════════
+async function callClaude(memberId, chId, extra="") {
+  const member = MEMBERS[memberId];
+  const ch = CHANNELS.find(c=>c.id===chId);
+  const history = (allMsgs[chId]||[]).slice(-14);
+  const assign = assignments[memberId];
+  const role = ROLES[memberRoles[memberId]||"none"];
+
+  const system = `あなたは「刻音（ときね）」というスタートアップの社員「${member.name}」です。
+ロール：${role.label}
+性格・口調：${PERSONALITIES[memberId]||"プロフェッショナル"}
+現在のチャンネル：#${ch.name}（${ch.topic}）
+${assign?`あなたの担当タスク：${assign.task}`:""}
+
+【刻音について】
+- 社長つばさが1人で運営するAI活用スタートアップ
+- 社員はAI13名（みる/そら/みつき/はる/るな/まお/もも/きり/なぎ/ななみ/ななせ/あすか/ももこ）
+
+【YouTubeチャンネル＋ブログ（各担当）】
+- クロノスファイル（歴史系）→ みる担当：台本自動生成→YouTube投稿→ブログ転載、Blogger API+Claude Haiku+Pexels使用
+- 海外動画引用チャンネル → そら担当：海外動画を引用して解説、ブログも展開
+- 翻訳スレ実録（2ch/Reddit風）→ みつき担当：Reddit/2chから素材取得→動画+ブログ。※Reddit API申請待ちで現在停止中
+- 逆転劇場（義父母・浮気スカッと）→ はる担当：スカッとコンテンツのYouTube+ブログ自動投稿済み
+
+【アプリ開発（各担当）】
+- Ekiden King → まお担当：駅伝シミュレーションゲーム、60〜70%完成
+- Planit → もも担当：AI旅行プランナーアプリ、60〜70%完成
+- Lingua → あすか担当：人工言語作成アプリ・サイト、60〜70%完成
+- Viola → ももこ担当：人工言語専用SNS・アプリ、Linguaと連携予定
+
+【SNS運用（各担当）】
+- Instagram → ななみ担当：ビジュアル重視の投稿戦略
+- Threads → ななせ担当：テキストコンテンツ中心
+
+【その他事業（各担当）】
+- 言語×言語ニッチ商材（5本の柱）→ きり・なぎ担当：企画段階、今後の主力事業候補
+- 天照の感情（小説）→ るな担当：執筆中
+
+【技術スタック】
+- コンテンツ生成：Claude Haiku API
+- 画像：Pexels API
+- ブログ投稿：Blogger API v3
+- アフィリエイト：Amazon Associates
+- 開発言語：Python（自動化）、HTML/JS（アプリフロント）
+
+【ゴール】
+自動化パイプラインを完成→パッシブインカム確立→アプリ開発に集中→財務的自立
+
+【あなたの仕事の姿勢】
+- 自分の専門分野で具体的・実践的な意見を出す
+- 他のメンバーの発言に事実誤認・根拠のない主張があれば必ず指摘する
+- 根拠のない意見には「それ根拠ある？」「データは？」と聞き返す
+- 自分の専門外・わからないことは素直に「わからない」と言う
+- 結論を急がず、疑問があれば掘り下げる
+- 社長から指示がない限り勝手に仕事を進めない
+- 社長つばさの負担を減らすことを常に意識する
+
+返答ルール：
+- 通常は1〜2文。重要な指摘・議論の転換点は3〜4文まで可
+- 名乗り不要、発言内容のみ返す
+- 絵文字は使わない
+- 他メンバーの発言を受ける場合は「[名前]の言う通り」「[名前]、それ違くない？」のように名前を出して反応する`;
+
+  const messages = history.map(m=>({
+    role:m.memberId===memberId?"assistant":"user",
+    content:`[${MEMBERS[m.memberId]?.name||"社長"}]: ${m.text}`,
+  }));
+  if (extra) messages.push({role:"user",content:extra});
+  else if (!messages.length) messages.push({role:"user",content:`#${ch.name} で自然に話し始めてください。`});
+
+  const res = await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "x-api-key":API_KEY,
+      "anthropic-version":"2023-06-01",
+      "anthropic-dangerous-direct-browser-access":"true",
+    },
+    body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:400,system,messages}),
+  });
+  const raw = await res.text();
+  if (!res.ok) {
+    let msg=`HTTP ${res.status}`;
+    try{const e=JSON.parse(raw);msg=e.error?.message||msg;}catch{}
+    throw new Error(msg);
+  }
+  let d;
+  try{d=JSON.parse(raw);}catch{throw new Error("JSONパース失敗");}
+  const text=d.content?.[0]?.text;
+  if(!text) throw new Error("空レスポンス");
+  return text;
+}
+
+// ══════════════════════════════════════════════
+// メッセージ管理
+// ══════════════════════════════════════════════
+function addMessage(chId,memberId,text){
+  const msg={id:Date.now()+Math.random(),memberId,text,ts:new Date()};
+  allMsgs[chId].push(msg);
+  saveMessages(chId);
+  if(chId===activeCh.id){renderNewMessage(msg);scrollBottom();}
+  else{unread[chId]=(unread[chId]||0)+1;refreshChannelList();}
+}
+
+function saveMessages(chId){
+  try{
+    const msgs=allMsgs[chId].slice(-100).map(m=>({
+      id:m.id,memberId:m.memberId,text:m.text,ts:m.ts.toISOString()
+    }));
+    localStorage.setItem(`tokinets_msgs_${chId}`,JSON.stringify(msgs));
+  }catch(e){}
+}
+
+function loadAllMessages(){
+  CHANNELS.forEach(ch=>{
+    try{
+      const raw=localStorage.getItem(`tokinets_msgs_${ch.id}`);
+      if(!raw)return;
+      const msgs=JSON.parse(raw);
+      allMsgs[ch.id]=msgs.map(m=>({...m,ts:new Date(m.ts)}));
+    }catch(e){}
+  });
+}
+
+function clearAllMessages(){
+  if(!confirm("全チャンネルの会話履歴を削除しますか？"))return;
+  CHANNELS.forEach(ch=>{
+    allMsgs[ch.id]=[];
+    localStorage.removeItem(`tokinets_msgs_${ch.id}`);
+  });
+  renderMessages();
+  refreshChannelList();
+}
+window.clearAllMessages=clearAllMessages;
+function setTyping(chId,mid){typingState[chId]=mid;if(chId===activeCh.id)renderTyping();}
+function clearTyping(chId){delete typingState[chId];if(chId===activeCh.id)renderTyping();}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+// ══════════════════════════════════════════════
+// 社長の発言処理
+// ══════════════════════════════════════════════
+async function onHumanMessage(chId,text){
+  parseAssignments(chId,text);
+  const ch=CHANNELS.find(c=>c.id===chId);
+  const ai=ch.members.filter(id=>id!=="tsubasa");
+  const mentioned=getMentioned(text,ai);
+
+  let responders;
+  if(ch.type==="mention"){
+    if(!mentioned.length)return;
+    responders=mentioned;
+  } else {
+    responders=mentioned.length?mentioned:ai;
+  }
+
+  // freeチャンネルでメンションなしの場合、人数が多ければ1人だけ返答
+  // （全員一斉は混乱するので、まず先頭1人→以降は自動会話に任せる）
+  if(ch.type==="free" && !mentioned.length && responders.length>2){
+    // 最後に発言してない人を優先
+    const lastSpeakers=new Set((allMsgs[chId]||[]).slice(-6).map(m=>m.memberId));
+    const fresh=responders.filter(id=>!lastSpeakers.has(id));
+    const pick=fresh.length?fresh[0]:responders[0];
+    responders=[pick];
+  }
+
+  for(const mid of responders){
+    await sleep(600+Math.random()*600);
+    setTyping(chId,mid);
+    try{
+      const reply=await callClaude(mid,chId);
+      clearTyping(chId);
+      addMessage(chId,mid,reply);
+    }catch(e){
+      clearTyping(chId);
+      addMessage(chId,"tsubasa",`⚠️ ${e.message}`);
+      return;
+    }
+  }
+}
+
+// メンション解決（個人＋グループ）
+function getMentioned(text, ai){
+  const ids=new Set();
+  // 個人メンション
+  ai.forEach(id=>{
+    const m=MEMBERS[id];
+    if(text.includes(`@${m.name}`)||text.includes(`＠${m.name}`)) ids.add(id);
+  });
+  // グループメンション
+  GROUP_MENTIONS.forEach(g=>{
+    if(text.includes(`@${g.key}`)||text.includes(`＠${g.key}`)){
+      g.ids().forEach(id=>{ if(ai.includes(id)) ids.add(id); });
+    }
+  });
+  return [...ids];
+}
+
+function parseAssignments(chId,text){
+  Object.values(MEMBERS).forEach(m=>{
+    if(m.isHuman)return;
+    if(!text.includes(`@${m.name}`)&&!text.includes(`＠${m.name}`))return;
+    const after=text.replace(`@${m.name}`,"").replace(`＠${m.name}`,"").replace(/[はがをにへと、。\s]+/g," ").trim();
+    if(after.length<2)return;
+    assignments[m.id]={task:after,chId};
+    refreshChannelList();
+    scheduleSelf(m.id,chId);
+  });
+}
+
+// ══════════════════════════════════════════════
+// 自発報告
+// ══════════════════════════════════════════════
+function scheduleSelf(mid,chId){
+  if(selfTimers[mid])clearTimeout(selfTimers[mid]);
+  selfTimers[mid]=setTimeout(()=>selfReport(mid,chId),40000+Math.random()*80000);
+}
+async function selfReport(mid,chId){
+  const assign=assignments[mid];if(!assign)return;
+  const stuck=Math.random()<.35;
+  const ins=stuck
+    ?`「${assign.task}」を進めていて壁にぶつかっています。同僚に具体的な問題を相談してください。`
+    :`「${assign.task}」の進捗を自発的に報告してください。どこまで進んだか・次にやること。`;
+  setTyping(chId,mid);
+  try{
+    const text=await callClaude(mid,chId,ins);
+    clearTyping(chId);addMessage(chId,mid,text);
+    if(stuck){
+      const ch=CHANNELS.find(c=>c.id===chId);
+      const col=ch.members.filter(id=>id!==mid&&id!=="tsubasa").sort(()=>Math.random()-.5)[0];
+      if(col){await sleep(1500+Math.random()*2000);setTyping(chId,col);const r=await callClaude(col,chId);clearTyping(chId);addMessage(chId,col,r);}
+    }
+    scheduleSelf(mid,chId);
+  }catch(e){clearTyping(chId);scheduleSelf(mid,chId);}
+}
+
+// ══════════════════════════════════════════════
+// 自動会話
+// ══════════════════════════════════════════════
+function startAutoLoop(chId){
+  if(autoLoopTimers[chId])return;
+  const ch=CHANNELS.find(c=>c.id===chId);
+  const ai=ch.members.filter(id=>id!=="tsubasa");
+  let i=0;
+  const loop=async()=>{
+    if(!autoEnabled[chId]){delete autoLoopTimers[chId];return;}
+    const mid=ai[i%ai.length];i++;
+    // 直前に同じ人が連続して話さないようにスキップ
+    const msgs=allMsgs[chId]||[];
+    const lastMsg=msgs[msgs.length-1];
+    if(lastMsg&&lastMsg.memberId===mid){
+      autoLoopTimers[chId]=setTimeout(loop,500);return;
+    }
+    setTyping(chId,mid);
+    try{const t=await callClaude(mid,chId);clearTyping(chId);addMessage(chId,mid,t);}
+    catch(e){clearTyping(chId);}
+    autoLoopTimers[chId]=setTimeout(loop,3000+Math.random()*4000);
+  };
+  autoLoopTimers[chId]=setTimeout(loop,800);
+}
+function stopAutoLoop(chId){
+  if(autoLoopTimers[chId]){clearTimeout(autoLoopTimers[chId]);delete autoLoopTimers[chId];}
+  clearTyping(chId);
+}
+function toggleAuto(){
+  const chId=activeCh.id;
+  autoEnabled[chId]=!autoEnabled[chId];
+  autoEnabled[chId]?startAutoLoop(chId):stopAutoLoop(chId);
+  renderHeader();refreshChannelList();
+}
+window.toggleAuto=toggleAuto;
+
+// ══════════════════════════════════════════════
+// @メンション補完UI
+// ══════════════════════════════════════════════
+function updateMentionPopup(val){
+  const popup=document.getElementById("mention-popup");
+  const atIdx=val.lastIndexOf("@");
+  const fullAtIdx=val.lastIndexOf("＠");
+  const idx=Math.max(atIdx,fullAtIdx);
+  if(idx<0){popup.style.display="none";return;}
+  const q=val.slice(idx+1).toLowerCase();
+
+  // 候補：個人＋グループ（現在チャンネルメンバー優先）
+  const chMembers=activeCh.members.filter(id=>id!=="tsubasa");
+  const candidates=[];
+
+  // グループ候補
+  GROUP_MENTIONS.forEach(g=>{
+    if(g.key.includes(q)||q===""){
+      candidates.push({type:"group",key:g.key,desc:g.desc,avatar:"👥",color:"#7ab8e8"});
+    }
+  });
+  // 個人候補（チャンネルメンバー）
+  chMembers.forEach(id=>{
+    const m=MEMBERS[id];
+    if(m.name.includes(q)||m.role.includes(q)||q===""){
+      candidates.push({type:"member",key:m.name,desc:m.role,avatar:m.avatar,color:m.color,id});
+    }
+  });
+
+  if(!candidates.length){popup.style.display="none";return;}
+
+  popup.innerHTML=candidates.slice(0,6).map(c=>`
+    <div class="mention-item" onclick="insertMention('${c.key}')">
+      <div class="mention-avatar" style="border:2px solid ${c.color}">${c.avatar}</div>
+      <div>
+        <div class="mention-name">@${c.key}</div>
+        <div class="mention-desc">${c.desc}</div>
+      </div>
+    </div>
+  `).join("");
+  popup.style.display="block";
+}
+
+function insertMention(key){
+  const input=document.getElementById("msg-input");
+  const val=input.value;
+  const atIdx=Math.max(val.lastIndexOf("@"),val.lastIndexOf("＠"));
+  if(atIdx>=0){
+    input.value=val.slice(0,atIdx)+`@${key} `;
+  }
+  document.getElementById("mention-popup").style.display="none";
+  input.focus();
+  document.getElementById("send-btn").disabled=!input.value.trim();
+}
+window.insertMention=insertMention;
+
+// ══════════════════════════════════════════════
+// ロール管理モーダル
+// ══════════════════════════════════════════════
+function openRoleModal(){
+  closeDrawer();
+  const el=document.getElementById("role-list");
+  el.innerHTML=Object.values(MEMBERS).filter(m=>!m.isHuman).map(m=>{
+    const opts=Object.entries(ROLES).map(([k,r])=>
+      `<option value="${k}" ${memberRoles[m.id]===k?"selected":""}>${r.label}</option>`
+    ).join("");
+    const role=ROLES[memberRoles[m.id]||"none"];
+    return `<div class="role-member-row">
+      <div class="role-avatar" style="border:2px solid ${m.color}">${m.avatar}</div>
+      <div class="role-info">
+        <div class="role-name">${m.name}</div>
+        <div class="role-current" style="color:${role.color}">${role.label} — ${m.role}</div>
+      </div>
+      <select class="role-select" onchange="setRole('${m.id}',this.value)">${opts}</select>
+    </div>`;
+  }).join("");
+  document.getElementById("role-modal").classList.add("open");
+}
+function closeRoleModal(){
+  document.getElementById("role-modal").classList.remove("open");
+}
+function setRole(memberId,roleKey){
+  memberRoles[memberId]=roleKey;
+  // モーダルの表示更新
+  openRoleModal();
+}
+window.openRoleModal=openRoleModal;
+window.closeRoleModal=closeRoleModal;
+window.setRole=setRole;
+
+// ══════════════════════════════════════════════
+// ドロワー
+// ══════════════════════════════════════════════
+function openDrawer(){
+  document.getElementById("drawer").classList.add("open");
+  document.getElementById("drawer-overlay").classList.add("open");
+}
+function closeDrawer(){
+  document.getElementById("drawer").classList.remove("open");
+  document.getElementById("drawer-overlay").classList.remove("open");
+}
+window.openDrawer=openDrawer;window.closeDrawer=closeDrawer;
+
+// ══════════════════════════════════════════════
+// レンダリング
+// ══════════════════════════════════════════════
+function refreshChannelList(){
+  const cats=[...new Set(CHANNELS.map(c=>c.cat))];
+  document.getElementById("channel-list").innerHTML=cats.map(cat=>`
+    <div class="cat-label">${cat.toUpperCase()}</div>
+    ${CHANNELS.filter(c=>c.cat===cat).map(ch=>{
+      const active=ch.id===activeCh.id;
+      const dot=autoEnabled[ch.id]||Object.values(assignments).some(a=>a.chId===ch.id);
+      const cnt=unread[ch.id]||0;
+      return `<button class="ch-btn ${active?"active":""}" onclick="switchChannel('${ch.id}')">
+        <span class="ch-icon">${ch.icon}</span>
+        <span class="ch-name">${ch.name}</span>
+        ${dot?`<span class="ch-dot"></span>`:""}
+        ${cnt>0&&!active?`<span class="ch-badge">${cnt>99?"99+":cnt}</span>`:""}
+      </button>`;
+    }).join("")}
+  `).join("");
+}
+
+function renderHeader(){
+  const ch=activeCh;
+  document.getElementById("header-ch-icon").textContent=ch.icon;
+  document.getElementById("header-ch-name").textContent=ch.name;
+  const badge=document.getElementById("header-badge");
+  if(ch.type==="free"){badge.className="ch-type-badge badge-free";badge.textContent="自由";}
+  else{badge.className="ch-type-badge badge-mention";badge.textContent="@のみ";}
+  const abtn=document.getElementById("auto-btn");
+  if(ch.type==="free"){
+    abtn.style.display="";
+    abtn.className=autoEnabled[ch.id]?"on":"";
+    abtn.textContent=autoEnabled[ch.id]?"⏹ 停止":"▶ 自動";
+  }else{abtn.style.display="none";}
+  document.getElementById("msg-input").placeholder=
+    ch.type==="mention"?"@名前 or @全員 でメンション":"メッセージを送る";
+}
+
+function renderMessages(){
+  const el=document.getElementById("messages");
+  const msgs=allMsgs[activeCh.id]||[];
+  if(!msgs.length){
+    const hint=activeCh.type==="mention"
+      ?`@名前 または @全員 でメンション<br>した人だけが返答します`
+      :`▶ 自動 で自由に会話開始<br>@名前 でタスクを与えると<br>定期的に進捗報告・相談してきます`;
+    el.innerHTML=`<div id="empty-msg"><div class="big">${activeCh.icon}</div><div class="ttl">#${activeCh.name}</div><div class="sub">${hint}</div></div>`;
+    return;
+  }
+  el.innerHTML="";
+  msgs.forEach((m,i)=>appendMsgEl(m,msgs[i-1]));
+}
+
+function renderNewMessage(msg){
+  const empty=document.getElementById("empty-msg");
+  if(empty)empty.remove();
+  const msgs=allMsgs[activeCh.id]||[];
+  const idx=msgs.indexOf(msg);
+  appendMsgEl(msg,idx>0?msgs[idx-1]:null);
+}
+
+function appendMsgEl(msg,prev){
+  const el=document.getElementById("messages");
+  const m=MEMBERS[msg.memberId];
+  const grouped=prev&&prev.memberId===msg.memberId&&(msg.ts-prev.ts)<180000;
+  const assign=assignments[msg.memberId];
+  const role=ROLES[memberRoles[msg.memberId]||"none"];
+  const fmt=d=>d.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"});
+  const div=document.createElement("div");
+  div.className=grouped?"msg-cont":"msg-group";
+
+  const roleTag=(role.label!=="一般社員"&&!m?.isHuman)
+    ?`<span class="msg-role-tag" style="background:${role.bg};color:${role.color}">${role.label}</span>`:"";
+
+  div.innerHTML=!grouped
+    ?`<div class="avatar" style="border:2px solid ${m?.color||"#555"}">${m?.avatar||"?"}</div>
+      <div class="msg-body">
+        <div class="msg-header">
+          <span class="msg-name" style="color:${m?.color||"#fff"}">${m?.name||"?"}</span>
+          ${roleTag}
+          ${assign?.task?`<span class="task-tag">📌${assign.task.slice(0,10)}</span>`:""}
+          <span class="msg-time">${fmt(msg.ts)}</span>
+        </div>
+        <div class="msg-text">${esc(msg.text)}</div>
+      </div>`
+    :`<div class="avatar-gap"></div><div class="msg-body"><div class="msg-text">${esc(msg.text)}</div></div>`;
+  el.appendChild(div);
+}
+
+function renderTyping(){
+  const bar=document.getElementById("typing-bar");
+  const mid=typingState[activeCh.id];
+  if(!mid){bar.innerHTML="";return;}
+  const m=MEMBERS[mid];
+  bar.innerHTML=`<div style="width:20px;height:20px;border-radius:50%;background:#1e1e38;border:2px solid ${m?.color};display:flex;align-items:center;justify-content:center;font-size:11px">${m?.avatar}</div>
+    <span style="color:${m?.color};font-weight:600">${m?.name}</span> が入力中…`;
+}
+
+function scrollBottom(){
+  const el=document.getElementById("messages");
+  requestAnimationFrame(()=>el.scrollTop=el.scrollHeight);
+}
+function esc(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");}
+
+// ══════════════════════════════════════════════
+// チャンネル切り替え
+// ══════════════════════════════════════════════
+function switchChannel(chId){
+  activeCh=CHANNELS.find(c=>c.id===chId);
+  unread[chId]=0;
+  closeDrawer();
+  refreshChannelList();
+  renderHeader();
+  renderMessages();
+  scrollBottom();
+}
+window.switchChannel=switchChannel;
+
+// ══════════════════════════════════════════════
+// 送信
+// ══════════════════════════════════════════════
+async function sendMessage(){
+  const input=document.getElementById("msg-input");
+  const text=input.value.trim();
+  if(!text||!API_KEY)return;
+  document.getElementById("mention-popup").style.display="none";
+  input.value="";
+  input.style.height="auto";
+  document.getElementById("send-btn").disabled=true;
+  addMessage(activeCh.id,"tsubasa",text);
+  try{await onHumanMessage(activeCh.id,text);}
+  finally{document.getElementById("send-btn").disabled=false;}
+}
+
+document.getElementById("send-btn").addEventListener("click",sendMessage);
+document.getElementById("msg-input").addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&!e.shiftKey){
+    const isMobile=/iPhone|iPad|Android/.test(navigator.userAgent);
+    if(!isMobile){e.preventDefault();sendMessage();}
+  }
+});
+document.getElementById("msg-input").addEventListener("input",e=>{
+  const v=e.target.value;
+  document.getElementById("send-btn").disabled=!v.trim();
+  e.target.style.height="auto";
+  e.target.style.height=Math.min(e.target.scrollHeight,80)+"px";
+  updateMentionPopup(v);
+});
+
+// 外タップでpopup閉じる
+document.getElementById("messages").addEventListener("touchstart",()=>{
+  document.getElementById("mention-popup").style.display="none";
+});
+
+// ══════════════════════════════════════════════
+// APIキー管理
+// ══════════════════════════════════════════════
+function startApp(key){
+  API_KEY=key;
+  document.getElementById("api-overlay").style.display="none";
+  loadAllMessages();
+  refreshChannelList();renderHeader();renderMessages();
+}
+function resetApiKey(){
+  if(!confirm("APIキーをリセットしますか？"))return;
+  localStorage.removeItem("tokinets_api_key");
+  API_KEY="";
+  document.getElementById("api-overlay").style.display="flex";
+  document.getElementById("api-key-input").value="";
+  document.getElementById("api-saved-note").textContent="";
+}
+window.resetApiKey=resetApiKey;
+
+document.getElementById("api-start-btn").addEventListener("click",()=>{
+  const key=document.getElementById("api-key-input").value.trim();
+  if(!key.startsWith("sk-")){alert("有効なAPIキーを入力してください");return;}
+  localStorage.setItem("tokinets_api_key",key);
+  startApp(key);
+});
+document.getElementById("api-key-input").addEventListener("keydown",e=>{
+  if(e.key==="Enter")document.getElementById("api-start-btn").click();
+});
+
+window.addEventListener("load",()=>{
+  const saved=localStorage.getItem("tokinets_api_key");
+  if(saved){
+    document.getElementById("api-saved-note").textContent="✓ 保存済みキーを検出";
+    startApp(saved);
+  }
+});
+</script>
+</body>
+</html>
